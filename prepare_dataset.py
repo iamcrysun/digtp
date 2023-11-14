@@ -12,7 +12,7 @@ import typer
 from tqdm import tqdm
 from transformers import T5Tokenizer
 
-DATA_FILE = "data/cord19-standard.txt"
+DATA_FILE = "SAP_New.txt"
 DATASET_CACHE_PATH = Path("dataset_cache/")
 DATASET_CACHE_PATH.mkdir(exist_ok=True, parents=True)
 
@@ -25,7 +25,7 @@ def process_sequence(sequence, processed_sequences, tokenizer):
     """This function takes a sequence of input ids (a tokenized sentence) and slices it if it is too long.
         It also discards the sequence if it cannot be sliced or has too much noise."""
     number_unknowns = sequence.count(tokenizer.unk_token_id)
-    if number_unknowns > 0.05 * len(sequence) or len(sequence) < 5:
+    if number_unknowns > 0.2 * len(sequence):
         return  # discard sentence if too much unknown tokens or too short sentence
     if len(sequence) > tokenizer.model_max_length:
         try:
@@ -108,7 +108,7 @@ def write_disk(input_ids, target_ids, file_counter):
 
 def main(tokenizer_name: str = typer.Option("t5-base", help="T5 tokenizer used for token ids."),
          valid_size: float = typer.Option(0.2, help="Validation set size."),
-         dumps_size: int = typer.Option(100, help="Size in MB for the dataset raw files."),
+         dumps_size: int = typer.Option(20, help="Size in MB for the dataset raw files."),
          mask_probability: float = typer.Option(0.15, help="Probability of masking a token in a sentence.")):
     """This script preprocesses and tokenizes a standardized pretraining text Dataset (a file with a sentence in each
     line) into a set of tokenized files for training and validating the text2text model."""
@@ -118,14 +118,15 @@ def main(tokenizer_name: str = typer.Option("t5-base", help="T5 tokenizer used f
     dot_token_1 = tokenizer.convert_tokens_to_ids([")."])[0]
     mask_tokens = tokenizer.additional_special_tokens_ids
     meta = {}
-    words_per_dump = 300_000 * dumps_size  # approx. 300_000 words per mb of dump file.
-    with open(DATA_FILE, 'r') as in_file:
+    words_per_dump = 300 * dumps_size  # approx. 300_000 words per mb of dump file.
+    with open(DATA_FILE, 'r', encoding='utf-8', errors='ignore') as in_file:
         number_lines = len([0 for _ in in_file])
         in_file.seek(0)  # after reading number of lines, restart file pointer
-        n = 100000  # size of batches of sentences from input file. ~=100mb chunks
+        n = 100  # size of batches of sentences from input file. ~=100mb chunks
         batch_counter, file_counter, words_counter = 1, 1, 0
         input_ids, target_ids = [], []
         for sentence_batch in iter(lambda: tuple(islice(in_file, n)), ()):  # tuples of islices size n until tuple ()
+            #print(dumps_size)
             print(f"Processing batch {batch_counter} of {math.ceil(number_lines / n)}.")
             inputs_batch = tokenizer.batch_encode_plus(sentence_batch, return_attention_mask=False, verbose=False)[
                 "input_ids"]  # performance bottleneck 1 here
@@ -135,10 +136,14 @@ def main(tokenizer_name: str = typer.Option("t5-base", help="T5 tokenizer used f
             del inputs_batch
             input_ids.extend(processed_batch)
             target_ids.extend(generate_target_ids(processed_batch, mask_probability))
-            for x in processed_batch: words_counter += len(x)
+            for x in processed_batch:
+                words_counter += len(x)
+                print(x)
             del processed_batch
+            print(words_counter)
             if words_counter > words_per_dump:  # 30M words ~= 100MB dump file size
                 dump_size = int(len(input_ids) * words_per_dump / words_counter)
+                print(dump_size, ' _______________________')
                 meta[f"dataset_{file_counter}.jbl"] = dump_size
                 Process(target=write_disk, args=(input_ids[:dump_size], target_ids[:dump_size], file_counter)).start()
                 input_ids, target_ids = input_ids[dump_size:], target_ids[dump_size:]

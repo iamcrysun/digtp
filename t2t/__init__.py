@@ -2,6 +2,7 @@ import math
 from functools import partial
 from dataclasses import dataclass
 from typing import Callable, Union
+import torchmetrics
 
 import torch
 import torch.nn.functional as F
@@ -171,7 +172,7 @@ class T5BaseModel(pl.LightningModule):
             max_len=self.config.max_len, is_classifier=is_classifier
         )
         self.metrics = [
-            ("acc", pl.metrics.Accuracy(compute_on_step=False))
+            ("acc", torchmetrics.Accuracy(compute_on_step=False))
         ]
         self.train_loss_tracker = pls.utils.EMATracker(alpha=0.02)
 
