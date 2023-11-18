@@ -17,7 +17,7 @@ from t2t import T5BaseModel, masked_cross_entropy_loss
 class T5Model(pl.LightningModule):
     base_t5_model: str = "t5-base"
     learning_rate: float = 1e-4
-    epochs: int = 5
+    epochs: int = 2
     fp16: bool = False
     batch_size: int = 16
     max_len: int = 64
@@ -49,7 +49,7 @@ class T5Model(pl.LightningModule):
 
 def main(
         t5_model: str = "t5-base", lr: float = 1e-4,
-        epochs: int = 5, fp16: bool = False,
+        epochs: int = 2, fp16: bool = False,
         batch_size: int = 16, max_len: int = 64,
         grad_accu: int = 1, num_gpus: int = 1
 ):
